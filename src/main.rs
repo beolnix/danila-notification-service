@@ -14,12 +14,10 @@ use hyper::{Body, Request, Response, Server, StatusCode};
 use hyper::rt::Future;
 use hyper::service::service_fn_ok;
 
-use mongodb::{Client, ClientOptions, ThreadedClient};
+use mongodb::{Client, ThreadedClient};
 use mongodb::db::ThreadedDatabase;
 
 use bson::Bson;
-
-const PHRASE: &str = "Hello, World!";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DANotificationResponse {
@@ -32,15 +30,15 @@ struct DANotificationRequest {
 }
 
 fn dispatch(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
-    if _req.uri() != "/danila-skill" {
-        return processNotificaitonRequest(_req, client);
+    if _req.uri() == "/danila-skill" {
+        return process_alexa_skill_request(_req, client);
     } else {
-        return processAlexaSkillRequest(_req, client);
+        return process_notificaiton_request(_req, client);
     }
 }
 
-fn processNotificaitonRequest(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
-    let (parts, body) = _req.into_parts();
+fn process_notificaiton_request(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
+    let (parts, _body) = _req.into_parts();
     let uri = parts.uri;
     let device = str::replace(uri.query().unwrap(), "device=", "");
 
@@ -74,17 +72,17 @@ fn processNotificaitonRequest(_req: Request<Body>, client: std::sync::Arc<mongod
                 .body(Body::from(format!("{{ \"count\": {} }}", count)))
                 .unwrap(),
         None => {
-            let errorDescription = "not found";
+            let error_description = "not found";
             return Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(errorDescription)).unwrap();
+                .body(Body::from(error_description)).unwrap();
         }
     };
 
     return response;
 }
 
-fn processAlexaSkillRequest(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
+fn process_alexa_skill_request(_req: Request<Body>, _client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
     Response::builder()
         .status(StatusCode::NOT_IMPLEMENTED)
         .body(Body::empty())
