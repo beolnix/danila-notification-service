@@ -88,15 +88,22 @@ fn process_notificaiton_request(_req: Request<Body>, client: std::sync::Arc<mong
 
 fn create_notification(_req: Request<Body>, _client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
 
-//    let (parts, body) = _req.into_parts();
-//    let raw_body = serde_json::from_slice(&body);
 
-    let body = Body::wrap_stream(_req.into_body().map(|chunk| {
-        let the_body = chunk.iter().cloned().collect::<Vec<u8>>();
-                Chunk::from(the_body)
-            }));
+    let result = _req.into_body()
+               .fold(Vec::new(), |mut acc, chunk| {
+                   acc.extend_from_slice(&chunk);
+                   futures::future::ok::<Vec<u8>, hyper::Error>(acc)
+//                   Ok(acc)
+               })
+        .and_then( |acc| {
+            let str_body = String::from_utf8(acc).unwrap();
+                   Ok(Response::builder()
+                      .status(StatusCode::OK)
+                      .body(Body::from(str_body))
+                      .unwrap())
+             });
 
-    Box::new(future::ok(Response::new(body)))
+    Box::new(result)
 
 }
 
