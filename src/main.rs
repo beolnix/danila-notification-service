@@ -10,9 +10,12 @@ extern crate serde_json;
 
 extern crate hyper;
 
-use hyper::{Body, Request, Response, Server, StatusCode};
-use hyper::rt::Future;
-use hyper::service::service_fn_ok;
+use hyper::{Body, Request, Response, Server, StatusCode, Chunk};
+use hyper::service::service_fn;
+
+
+use futures;
+use futures::{future, Future, Stream};
 
 use mongodb::{Client, ThreadedClient};
 use mongodb::db::ThreadedDatabase;
@@ -29,15 +32,17 @@ struct DANotificationRequest {
     device_name: String
 }
 
-fn dispatch(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
-    if _req.uri() == "/danila-skill" {
-        return process_alexa_skill_request(_req, client);
+fn dispatch(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    println!("dispatching uri: {}", _req.uri());
+
+    if _req.uri() == "/danila-skill/create-notification" {
+        return create_notification(_req, client);
     } else {
         return process_notificaiton_request(_req, client);
     }
 }
 
-fn process_notificaiton_request(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
+fn process_notificaiton_request(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
     let (parts, _body) = _req.into_parts();
     let uri = parts.uri;
     let device = str::replace(uri.query().unwrap(), "device=", "");
@@ -66,27 +71,33 @@ fn process_notificaiton_request(_req: Request<Body>, client: std::sync::Arc<mong
         _ => None
     };
 
-    let response: Response<Body> = match result {
-        Some(count) => Response::builder()
+    let response = match result {
+        Some(count) => futures::future::ok(Response::builder()
                 .status(StatusCode::OK)
                 .body(Body::from(format!("{{ \"count\": {} }}", count)))
-                .unwrap(),
-        None => {
-            let error_description = "not found";
-            return Response::builder()
+                .unwrap()),
+        None => futures::future::ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(Body::from(error_description)).unwrap();
-        }
+                .body(Body::from("not found"))
+                .unwrap())
+
     };
 
-    return response;
+    return Box::new(response);
 }
 
-fn process_alexa_skill_request(_req: Request<Body>, _client: std::sync::Arc<mongodb::ClientInner>) -> Response<Body> {
-    Response::builder()
-        .status(StatusCode::NOT_IMPLEMENTED)
-        .body(Body::empty())
-        .unwrap()
+fn create_notification(_req: Request<Body>, _client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+
+//    let (parts, body) = _req.into_parts();
+//    let raw_body = serde_json::from_slice(&body);
+
+    let body = Body::wrap_stream(_req.into_body().map(|chunk| {
+        let the_body = chunk.iter().cloned().collect::<Vec<u8>>();
+                Chunk::from(the_body)
+            }));
+
+    Box::new(future::ok(Response::new(body)))
+
 }
 
 fn main() {
@@ -97,7 +108,7 @@ fn main() {
 
     let new_svc = move || {
         let _client = client.clone();
-        service_fn_ok( move |req: Request<Body>| {
+        service_fn( move |req: Request<Body>| {
             dispatch(req, _client.clone())
         })
     };
