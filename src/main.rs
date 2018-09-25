@@ -4,10 +4,9 @@ extern crate serde;
 extern crate serde_json;
 extern crate hyper;
 
-use hyper::{Body, Request, Response, Server, StatusCode, Chunk};
+use hyper::{Body, Request, Response, Server, StatusCode};
 use hyper::service::service_fn;
 
-use futures;
 use futures::{future, Future, Stream};
 
 mod storage;
@@ -42,7 +41,7 @@ fn process_notificaiton_request(_req: Request<Body>, storage: Arc<RwLock<storage
     println!("DEBUG: received notifications request for device: {}", device);
 
     let count = storage.read().unwrap().size(device);
-    let response = futures::future::ok(Response::builder()
+    let response = future::ok(Response::builder()
                 .status(StatusCode::OK)
                 .body(Body::from(format!("{{ \"count\": {} }}", count)))
                 .unwrap());
@@ -54,7 +53,7 @@ fn create_notification(req: Request<Body>, storage: Arc<RwLock<storage::Storage>
     let result = req.into_body()
         .fold(Vec::new(), |mut acc, chunk| {
             acc.extend_from_slice(&chunk);
-            futures::future::ok::<Vec<u8>, hyper::Error>(acc)
+            future::ok::<Vec<u8>, hyper::Error>(acc)
         })
         .and_then( move |acc| {
             let str_body = String::from_utf8(acc).unwrap();

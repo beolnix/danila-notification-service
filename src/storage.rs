@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 
-
+#[derive(Debug)]
 pub struct Storage {
     devices: HashSet<String>,
     notifications: HashMap<String, VecDeque<Event>>
@@ -95,6 +95,7 @@ fn smoke_test_empty_storage() {
 
     storage.add_event(event.clone(), String::from("Milan"));
     storage.add_event(event.clone(), String::from("Milan"));
+    println!("test debug {:?}", &storage);
 
     match storage.pop_event(String::from("Berlin")) {
         Some(_) => panic!(),
