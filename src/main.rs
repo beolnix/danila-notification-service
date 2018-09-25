@@ -1,26 +1,18 @@
-#[macro_use(bson, doc)]
-extern crate bson;
-extern crate mongodb;
-
 #[macro_use]
 extern crate serde_derive;
-
 extern crate serde;
 extern crate serde_json;
-
 extern crate hyper;
 
 use hyper::{Body, Request, Response, Server, StatusCode, Chunk};
 use hyper::service::service_fn;
 
-
 use futures;
 use futures::{future, Future, Stream};
 
-use mongodb::{Client, ThreadedClient};
-use mongodb::db::ThreadedDatabase;
+mod storage;
 
-use bson::Bson;
+use std::sync::{Arc, RwLock};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DANotificationResponse {
@@ -32,91 +24,61 @@ struct DANotificationRequest {
     device_name: String
 }
 
-fn dispatch(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+fn dispatch(_req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
     println!("dispatching uri: {}", _req.uri());
 
     if _req.uri() == "/danila-skill/create-notification" {
-        return create_notification(_req, client);
+        return create_notification(_req, storage);
     } else {
-        return process_notificaiton_request(_req, client);
+        return process_notificaiton_request(_req, storage);
     }
 }
 
-fn process_notificaiton_request(_req: Request<Body>, client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+fn process_notificaiton_request(_req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
     let (parts, _body) = _req.into_parts();
     let uri = parts.uri;
     let device = str::replace(uri.query().unwrap(), "device=", "");
 
     println!("DEBUG: received notifications request for device: {}", device);
 
-    let coll = client.db("danila_app").collection("notifications");
-
-    let doc = doc! {
-        "device": device
-    };
-
-    let mut cursor = coll.find(Some(doc.clone()), None)
-        .ok().expect("failed to find notifications for device");
-
-    let item = cursor.next();
-
-    let result = match item {
-        Some(ref test_doc) => match test_doc {
-            Ok(ref found_doc) => match found_doc.get("count") {
-                Some(&Bson::String(ref count)) => Some(count),
-                _ => None
-            },
-            _ => None
-        },
-        _ => None
-    };
-
-    let response = match result {
-        Some(count) => futures::future::ok(Response::builder()
+    let count = storage.read().unwrap().size(device);
+    let response = futures::future::ok(Response::builder()
                 .status(StatusCode::OK)
                 .body(Body::from(format!("{{ \"count\": {} }}", count)))
-                .unwrap()),
-        None => futures::future::ok(Response::builder()
-                .status(StatusCode::NOT_FOUND)
-                .body(Body::from("not found"))
-                .unwrap())
-
-    };
+                .unwrap());
 
     return Box::new(response);
 }
 
-fn create_notification(_req: Request<Body>, _client: std::sync::Arc<mongodb::ClientInner>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-
-
-    let result = _req.into_body()
-               .fold(Vec::new(), |mut acc, chunk| {
-                   acc.extend_from_slice(&chunk);
-                   futures::future::ok::<Vec<u8>, hyper::Error>(acc)
-//                   Ok(acc)
-               })
-        .and_then( |acc| {
+fn create_notification(req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    let result = req.into_body()
+        .fold(Vec::new(), |mut acc, chunk| {
+            acc.extend_from_slice(&chunk);
+            futures::future::ok::<Vec<u8>, hyper::Error>(acc)
+        })
+        .and_then( move |acc| {
             let str_body = String::from_utf8(acc).unwrap();
-                   Ok(Response::builder()
-                      .status(StatusCode::OK)
-                      .body(Body::from(str_body))
-                      .unwrap())
-             });
+            let event = storage::Event {
+                from_device: String::from("test"),
+                event_type: storage::EventType::SLAP
+            };
+            storage.write().unwrap().add_event(event, String::from("Berlin"));
+            Ok(Response::builder()
+               .status(StatusCode::OK)
+               .body(Body::from(str_body))
+               .unwrap())
+        });
 
     Box::new(result)
-
 }
 
 fn main() {
-
-    let client = Client::connect("localhost", 27017)
-        .expect("Failed to initialize standalone client.");
-
+    let storage = Arc::new(RwLock::new(storage::Storage::new()));
 
     let new_svc = move || {
-        let _client = client.clone();
+        let _storage = storage.clone();
         service_fn( move |req: Request<Body>| {
-            dispatch(req, _client.clone())
+            dispatch(req, _storage.clone())
         })
     };
 
