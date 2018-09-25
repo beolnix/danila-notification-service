@@ -23,18 +23,29 @@ struct DANotificationRequest {
     device_name: String
 }
 
-fn dispatch(_req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-    println!("dispatching uri: {}", _req.uri());
+fn dispatch(req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    println!("dispatching uri: {}", req.uri());
 
-    if _req.uri() == "/danila-skill/create-notification" {
-        return create_notification(_req, storage);
-    } else {
-        return process_notificaiton_request(_req, storage);
+    match req.uri().path() {
+        "/danila-skill/create-notification" => create_notification(req, storage),
+        "/danila-skill/retrieve-notification" => retrieve_notifications(req, storage),
+        "/notifications" => process_notificaiton_request(req, storage),
+        _ => Box::new(future::ok(Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(Body::empty())
+                        .unwrap()))
     }
 }
 
-fn process_notificaiton_request(_req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-    let (parts, _body) = _req.into_parts();
+fn retrieve_notifications(_req: Request<Body>, _storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    Box::new(future::ok(Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .body(Body::empty())
+                        .unwrap()))
+}
+
+fn process_notificaiton_request(req: Request<Body>, storage: Arc<RwLock<storage::Storage>>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    let (parts, _body) = req.into_parts();
     let uri = parts.uri;
     let device = str::replace(uri.query().unwrap(), "device=", "");
 
@@ -57,6 +68,7 @@ fn create_notification(req: Request<Body>, storage: Arc<RwLock<storage::Storage>
         })
         .and_then( move |acc| {
             let str_body = String::from_utf8(acc).unwrap();
+            println!("request body: {}", str_body);
             let event = storage::Event {
                 from_device: String::from("test"),
                 event_type: storage::EventType::SLAP
