@@ -1,5 +1,5 @@
 
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{Body, Request, Response, StatusCode, Method};
 
 use futures::{future, Future, Stream};
 use std::sync::{Arc};
@@ -26,12 +26,38 @@ impl Dispatcher {
 
         match req.uri().path() {
             "/alexa-skill" => self.dispatch_alexa(req),
-            "/rest-api/" => self.rest_controller.process_notificaiton_request(req),
-            _ => Box::new(future::ok(Response::builder()
-                                     .status(StatusCode::NOT_FOUND)
-                                     .body(Body::empty())
-                                     .unwrap()))
+            _ => self.dispatch_rest(req)
         }
+    }
+
+    fn dispatch_rest(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+        let result: Response<Body> = match (req.method(), req.uri().path()) {
+            (&Method::GET, "/rest-api/notifications") => {
+                let (parts, _body) = req.into_parts();
+                let uri = parts.uri;
+
+                match uri.query() {
+                    Some(query_params) => {
+                        let device = str::replace(query_params, "device=", "");
+                        self.rest_controller.get_notifications_for(&device)
+                    },
+                    _ => {
+                        Response::builder()
+                           .status(StatusCode::BAD_REQUEST)
+                           .body(Body::from("query parameter 'city' is mandatory but hasn't been provided."))
+                           .unwrap()
+                    }
+                }
+            }
+            _ => {
+                Response::builder()
+                   .status(StatusCode::NOT_FOUND)
+                   .body(Body::empty())
+                   .unwrap()
+            }
+        };
+
+        return Box::new(future::ok(result));
     }
 
     fn dispatch_alexa(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {

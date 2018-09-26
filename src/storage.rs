@@ -49,6 +49,10 @@ impl Storage {
         storage
     }
 
+    pub fn is_registered(&self, device: &String) -> bool {
+        self.devices.contains(device)
+    }
+
     pub fn add_event(&mut self, event: Event, to_device: String) {
         if self.devices.contains(&to_device) {
             match self.notifications.get_mut(&to_device) {

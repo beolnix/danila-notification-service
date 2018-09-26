@@ -9,8 +9,8 @@ mod api;
 mod storage;
 
 use std::sync::{Arc, RwLock};
-use futures::{Future};
-use hyper::{Body, Request, Server};
+use futures::{future, Future, Stream};
+use hyper::{Body, Request, Server, Method, Response};
 use hyper::service::service_fn;
 
 fn create_dispatcher(storage: Arc<RwLock<storage::Storage>>) -> api::dispatcher::Dispatcher {
@@ -40,6 +40,28 @@ fn main() {
     // Run this server for... forever!
     hyper::rt::run(server);
 
+}
+
+#[test]
+fn smoke_test_get_notifications() {
+    // given
+    let storage = Arc::new(RwLock::new(storage::Storage::new()));
+    let dispatcher = create_dispatcher(storage.clone());
+    let for_city = String::from("Berlin");
+    let from_city = String::from("Milan");
+
+    let event = storage::Event::new_slap_from(from_city.clone());
+    storage.write().unwrap().add_event(event.clone(), for_city.clone());
+
+    // when
+    let req = build_request_for_get_notifications(for_city.clone());
+
+    // then
+    let response = dispatcher.dispatch(req).wait().unwrap();
+    let rsp_body = consume_body(response);
+    let response_object: api::rest::dto::DACountNotificationResponse = serde_json::from_str(&rsp_body).unwrap();
+
+    assert_eq!(response_object.message_num, 1);
 }
 
 #[test]
@@ -75,7 +97,7 @@ fn smoke_test_create_and_retrieve_slap() {
     // STEP 2: deliver notification for Berlin
     deliver_notification_for(&city, &dispatcher);
 
-    // STEP 1: verify notification delinvered
+    // STEP 2: verify notification delinvered
     let berlin_queue_size = storage.read().unwrap().size(&city);
     assert_eq!(berlin_queue_size, 0);
 }
@@ -104,9 +126,31 @@ fn create_notification_for(city: &String, dispatcher: &api::dispatcher::Dispatch
 
 }
 
+fn build_request_for_get_notifications(city: String) -> Request<Body> {
+    Request::builder()
+        .method(Method::GET)
+        .uri(format!("https://auto1.danila.app/rest-api/notifications?city={}", &city))
+        .body(Body::empty())
+        .unwrap()
+}
+
 fn build_request_for_skill_api(body: String) -> Request<Body> {
     Request::builder()
         .uri("https://auto1.danila.app/alexa-skill")
         .body(Body::from(body))
         .unwrap()
+}
+
+fn consume_body(rsp: Response<Body>) -> String {
+     let result = rsp.into_body()
+            .fold(Vec::new(), |mut acc, chunk| {
+                acc.extend_from_slice(&chunk);
+                future::ok::<Vec<u8>, hyper::Error>(acc)
+            })
+            .and_then( move |acc| {
+                let str_body = String::from_utf8(acc).unwrap();
+                Ok(str_body)
+            }).wait();
+
+    result.unwrap()
 }

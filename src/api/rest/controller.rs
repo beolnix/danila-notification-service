@@ -2,6 +2,7 @@ use crate::storage;
 use std::sync::{Arc, RwLock};
 
 use crate::futures::{future, Future};
+use crate::api::rest::dto::DACountNotificationResponse;
 
 use hyper::{Body, Request, Response, StatusCode};
 
@@ -17,19 +18,31 @@ impl RestController {
         }
     }
 
-    pub fn process_notificaiton_request(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-        let (parts, _body) = req.into_parts();
-        let uri = parts.uri;
-        let device = str::replace(uri.query().unwrap(), "device=", "");
-
-        println!("DEBUG: received notifications request for device: {}", device);
+    pub fn get_notifications_for(&self, city_param: &String) -> Response<Body> {
+        let device = city_param.replace("city=", "");
+        println!("DEBUG: received GET notifications request for device: {}", device);
 
         let count = self.storage.read().unwrap().size(&device);
-        let response = future::ok(Response::builder()
-                                  .status(StatusCode::OK)
-                                  .body(Body::from(format!("{{ \"count\": {} }}", count)))
-                                  .unwrap());
 
-        return Box::new(response);
+        return self.prepare_response(count);
     }
+
+    fn prepare_response(&self, num: usize) -> Response<Body> {
+        let response_object = DACountNotificationResponse::new(num);
+        match serde_json::to_string(&response_object) {
+            Ok(json) => Response::builder()
+                           .status(StatusCode::OK)
+                           .body(Body::from(json))
+                           .unwrap(),
+            Err(err) => {
+                println!("ERROR: failed to serialize response for notification creation: {:?}", err);
+                Response::builder()
+                   .status(StatusCode::INTERNAL_SERVER_ERROR)
+                   .body(Body::empty())
+                   .unwrap()
+            }
+
+        }
+    }
+
 }

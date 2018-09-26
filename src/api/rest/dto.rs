@@ -1,9 +1,12 @@
 #[derive(Serialize, Deserialize, Debug)]
-pub struct DANotificationResponse {
-    message_num: i32
+pub struct DACountNotificationResponse {
+    pub message_num: usize
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct DANotificationRequest {
-    device_name: String
+impl DACountNotificationResponse {
+    pub fn new(message_num: usize) -> DACountNotificationResponse {
+        DACountNotificationResponse {
+            message_num: message_num
+        }
+    }
 }

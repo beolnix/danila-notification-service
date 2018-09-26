@@ -57,6 +57,12 @@ impl AlexaController {
 
     pub fn deliver_notification(&self, call: &GenericCall) -> Result<Response<Body>, hyper::Error> {
         let for_city = &call.context.system.device.device_id;
+
+        if !self.storage.read().unwrap().is_registered(&for_city) {
+            let response_object = GenericResult::city_unknown();
+            return self.prepare_response(response_object);
+        }
+
         match self.storage.write().unwrap().pop_event(for_city) {
             Some(event) => {
                 let result = GenericResult::for_event(event);
