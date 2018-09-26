@@ -1,23 +1,23 @@
 
-use hyper::{Body, Request, Response, Server, StatusCode};
+use hyper::{Body, Request, Response, StatusCode};
 
 use futures::{future, Future, Stream};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc};
 use crate::api::rest::controller::RestController;
 use crate::api::alexa::controller::AlexaController;
 use crate::api::alexa::dto::GenericCall;
 
 pub struct Dispatcher {
-    restController: Arc<RestController>,
-    alexaController: Arc<AlexaController>
+    rest_controller: Arc<RestController>,
+    alexa_controller: Arc<AlexaController>
 }
 
 impl Dispatcher {
 
-    pub fn new(restController: RestController, alexaController: AlexaController) -> Dispatcher {
+    pub fn new(rest_controller: RestController, alexa_controller: AlexaController) -> Dispatcher {
         Dispatcher {
-            restController: Arc::new(restController),
-            alexaController: Arc::new(alexaController)
+            rest_controller: Arc::new(rest_controller),
+            alexa_controller: Arc::new(alexa_controller)
         }
     }
 
@@ -26,7 +26,7 @@ impl Dispatcher {
 
         match req.uri().path() {
             "/alexa-skill" => self.dispatch_alexa(req),
-            "/rest-api/" => self.restController.process_notificaiton_request(req),
+            "/rest-api/" => self.rest_controller.process_notificaiton_request(req),
             _ => Box::new(future::ok(Response::builder()
                                      .status(StatusCode::NOT_FOUND)
                                      .body(Body::empty())
@@ -35,7 +35,7 @@ impl Dispatcher {
     }
 
     fn dispatch_alexa(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-        let _alexaController = self.alexaController.clone();
+        let _alexa_controller = self.alexa_controller.clone();
         let result = req.into_body()
             .fold(Vec::new(), |mut acc, chunk| {
                 acc.extend_from_slice(&chunk);
@@ -48,8 +48,8 @@ impl Dispatcher {
 
                 let processing_result: Result<Response<Body>, hyper::Error> = match parse_result {
                     Ok(call) => match call.request.intent.name.as_ref() {
-                        "create_slap_notification" => _alexaController.create_slap_notification(&call.request.intent.slots.country.value, &call),
-                        _ => _alexaController.no_action_defined(&call)
+                        "create_slap_notification" => _alexa_controller.create_slap_notification(&call.request.intent.slots.country.value, &call),
+                        _ => _alexa_controller.no_action_defined(&call)
                     },
                     Err(err) => {
                         println!("alexa request deserialisation error: {:?}", err);

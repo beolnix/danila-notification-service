@@ -13,7 +13,7 @@ pub struct GenericCall {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Context {
-        #[serde(rename = "System")]
+    #[serde(rename = "System")]
     pub system: System
 }
 
@@ -24,14 +24,17 @@ pub struct System {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Device {
-    pub deviceId: String
+    #[serde(rename = "deviceId")]
+    pub device_id: String
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Request {
     #[serde(rename = "type")]
-    pub typeName: String,
-    pub requestId: String,
+    pub type_name: String,
+
+    #[serde(rename = "requestId")]
+    pub request_id: String,
     pub intent: Intent
 }
 

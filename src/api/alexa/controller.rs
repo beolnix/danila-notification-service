@@ -1,10 +1,6 @@
 use crate::storage;
 use std::sync::{Arc, RwLock};
 
-use crate::futures;
-use futures::Future;
-use futures::future;
-
 use hyper::{Body, Request, Response, StatusCode};
 
 use crate::api::alexa::dto::GenericCall;
@@ -22,7 +18,7 @@ impl AlexaController {
         }
     }
 
-    pub fn create_slap_notification(&self, for_city: &String, call: &GenericCall) -> Result<Response<Body>, hyper::Error> {
+    pub fn create_slap_notification(&self, for_city: &String, _call: &GenericCall) -> Result<Response<Body>, hyper::Error> {
         println!("create slap notification for the city: {}", &for_city);
 
         let event = storage::Event {

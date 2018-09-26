@@ -1,9 +1,7 @@
 use crate::storage;
 use std::sync::{Arc, RwLock};
 
-use crate::futures;
-use futures::Future;
-use futures::future;
+use crate::futures::{future, Future};
 
 use hyper::{Body, Request, Response, StatusCode};
 
