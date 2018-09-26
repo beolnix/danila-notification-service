@@ -49,15 +49,15 @@ impl Storage {
         }
     }
 
-    pub fn pop_event(&mut self, for_device: String) -> Option<Event> {
-        match self.notifications.get_mut(&for_device) {
+    pub fn pop_event(&mut self, for_device: &String) -> Option<Event> {
+        match self.notifications.get_mut(for_device) {
             Some(queue) => queue.pop_front(),
             _ => None
         }
     }
 
-    pub fn size(&self, for_device: String) -> usize {
-        match self.notifications.get(&for_device) {
+    pub fn size(&self, for_device: &String) -> usize {
+        match self.notifications.get(for_device) {
             Some(queue) => queue.len(),
             _ => 0
         }
@@ -77,7 +77,7 @@ fn smoke_test_storage() {
 
     storage.add_event(event.clone(), String::from("Milan"));
 
-    match storage.pop_event(String::from("Milan")) {
+    match storage.pop_event(&String::from("Milan")) {
         Some(poped_event) => assert_eq!(event.from_device, poped_event.from_device),
         _ => panic!()
     }
@@ -97,22 +97,22 @@ fn smoke_test_empty_storage() {
     storage.add_event(event.clone(), String::from("Milan"));
     println!("test debug {:?}", &storage);
 
-    match storage.pop_event(String::from("Berlin")) {
+    match storage.pop_event(&String::from("Berlin")) {
         Some(_) => panic!(),
         _ => assert!(true)
     }
 
-    match storage.pop_event(String::from("Milan")) {
+    match storage.pop_event(&String::from("Milan")) {
         Some(poped_event) => assert_eq!(event.from_device, poped_event.from_device),
         _ => panic!()
     }
 
-    match storage.pop_event(String::from("Milan")) {
+    match storage.pop_event(&String::from("Milan")) {
         Some(poped_event) => assert_eq!(event.from_device, poped_event.from_device),
         _ => panic!()
     }
 
-    match storage.pop_event(String::from("Milan")) {
+    match storage.pop_event(&String::from("Milan")) {
         Some(_) => panic!(),
         _ => assert!(true)
     }
@@ -131,7 +131,7 @@ fn test_size() {
     storage.add_event(event.clone(), String::from("Milan"));
     storage.add_event(event.clone(), String::from("Milan"));
 
-    assert_eq!(storage.size(String::from("Berlin")), 0);
-    assert_eq!(storage.size(String::from("Milan")), 2);
+    assert_eq!(storage.size(&String::from("Berlin")), 0);
+    assert_eq!(storage.size(&String::from("Milan")), 2);
 }
 
