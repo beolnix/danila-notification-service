@@ -16,7 +16,17 @@ pub struct Event {
 
 #[derive(Clone, Debug)]
 pub enum EventType {
-    SLAP
+    SLAP,
+    MESSAGE
+}
+
+impl Event {
+    pub fn new_slap_from(from_city: String) -> Event {
+        Event {
+            from_device: from_city,
+            event_type: EventType::SLAP
+        }
+    }
 }
 
 impl Storage {

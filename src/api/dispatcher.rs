@@ -48,7 +48,8 @@ impl Dispatcher {
 
                 let processing_result: Result<Response<Body>, hyper::Error> = match parse_result {
                     Ok(call) => match call.request.intent.name.as_ref() {
-                        "create_slap_notification" => _alexa_controller.create_slap_notification(&call.request.intent.slots.country.value, &call),
+                        "create_slap_notification" => _alexa_controller.create_slap_notification(call),
+                        "deliver_notification" => _alexa_controller.deliver_notification(&call),
                         _ => _alexa_controller.no_action_defined(&call)
                     },
                     Err(err) => {
@@ -62,11 +63,6 @@ impl Dispatcher {
                 };
                 processing_result
 
-                // _alexaController.create_slap_notification(&String::from("Berlin"), &parse_result.unwrap());
-                // Ok(Response::builder()
-                //    .status(StatusCode::OK)
-                //    .body(Body::empty())
-                //    .unwrap())
             });
 
         return Box::new(result);
