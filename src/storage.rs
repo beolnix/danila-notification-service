@@ -10,8 +10,8 @@ pub struct Storage {
 
 #[derive(Clone, Debug)]
 pub struct Event {
-    pub from_device: String,
-    pub event_type: EventType
+    pub event_type: EventType,
+    pub message: Option<String>
 }
 
 #[derive(Clone, Debug)]
@@ -21,10 +21,17 @@ pub enum EventType {
 }
 
 impl Event {
-    pub fn new_slap_from(from_city: String) -> Event {
+    pub fn new_slap() -> Event {
         Event {
-            from_device: from_city,
-            event_type: EventType::SLAP
+            event_type: EventType::SLAP,
+            message: None
+        }
+    }
+
+    pub fn new_message(text: String) -> Event {
+        Event {
+            event_type: EventType::MESSAGE,
+            message: Some(text)
         }
     }
 }
@@ -36,10 +43,10 @@ impl Storage {
             notifications: HashMap::new()
         };
 
-        storage.devices.insert(String::from("Milan"));
-        storage.devices.insert(String::from("Poland"));
-        storage.devices.insert(String::from("Kiev"));
-        storage.devices.insert(String::from("Berlin"));
+        storage.devices.insert(String::from("MILAN"));
+        storage.devices.insert(String::from("POLAND"));
+        storage.devices.insert(String::from("KIEV"));
+        storage.devices.insert(String::from("BERLIN"));
 
         for device in &storage.devices {
             let queue = VecDeque::new();
@@ -84,15 +91,12 @@ impl Storage {
 fn smoke_test_storage() {
     let mut storage = Storage::new();
 
-    let event = Event {
-        from_device: String::from("Berlin"),
-        event_type: EventType::SLAP
-    };
+    let event = Event::new_slap();
 
-    storage.add_event(event.clone(), String::from("Milan"));
+    storage.add_event(event.clone(), String::from("MILAN"));
 
-    match storage.pop_event(&String::from("Milan")) {
-        Some(poped_event) => assert_eq!(event.from_device, poped_event.from_device),
+    match storage.pop_event(&String::from("MILAN")) {
+        Some(poped_event) => (),
         _ => panic!()
     }
 
@@ -102,31 +106,28 @@ fn smoke_test_storage() {
 fn smoke_test_empty_storage() {
     let mut storage = Storage::new();
 
-    let event = Event {
-        from_device: String::from("Berlin"),
-        event_type: EventType::SLAP
-    };
+    let event = Event::new_slap();
 
-    storage.add_event(event.clone(), String::from("Milan"));
-    storage.add_event(event.clone(), String::from("Milan"));
+    storage.add_event(event.clone(), String::from("MILAN"));
+    storage.add_event(event.clone(), String::from("MILAN"));
     println!("test debug {:?}", &storage);
 
-    match storage.pop_event(&String::from("Berlin")) {
+    match storage.pop_event(&String::from("BERLIN")) {
         Some(_) => panic!(),
         _ => assert!(true)
     }
 
-    match storage.pop_event(&String::from("Milan")) {
-        Some(poped_event) => assert_eq!(event.from_device, poped_event.from_device),
+    match storage.pop_event(&String::from("MILAN")) {
+        Some(poped_event) => (),
         _ => panic!()
     }
 
-    match storage.pop_event(&String::from("Milan")) {
-        Some(poped_event) => assert_eq!(event.from_device, poped_event.from_device),
+    match storage.pop_event(&String::from("MILAN")) {
+        Some(poped_event) => (),
         _ => panic!()
     }
 
-    match storage.pop_event(&String::from("Milan")) {
+    match storage.pop_event(&String::from("MILAN")) {
         Some(_) => panic!(),
         _ => assert!(true)
     }
@@ -137,15 +138,12 @@ fn smoke_test_empty_storage() {
 fn test_size() {
     let mut storage = Storage::new();
 
-    let event = Event {
-        from_device: String::from("Berlin"),
-        event_type: EventType::SLAP
-    };
+    let event = Event::new_slap();
 
-    storage.add_event(event.clone(), String::from("Milan"));
-    storage.add_event(event.clone(), String::from("Milan"));
+    storage.add_event(event.clone(), String::from("MILAN"));
+    storage.add_event(event.clone(), String::from("MILAN"));
 
-    assert_eq!(storage.size(&String::from("Berlin")), 0);
-    assert_eq!(storage.size(&String::from("Milan")), 2);
+    assert_eq!(storage.size(&String::from("BERLIN")), 0);
+    assert_eq!(storage.size(&String::from("MILAN")), 2);
 }
 

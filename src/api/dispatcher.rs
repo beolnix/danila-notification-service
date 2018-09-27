@@ -31,33 +31,33 @@ impl Dispatcher {
     }
 
     fn dispatch_rest(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-        let result: Response<Body> = match (req.method(), req.uri().path()) {
+        let result = match (req.method(), req.uri().path()) {
             (&Method::GET, "/rest-api/notifications") => {
                 let (parts, _body) = req.into_parts();
                 let uri = parts.uri;
 
                 match uri.query() {
                     Some(query_params) => {
-                        let device = str::replace(query_params, "device=", "");
-                        self.rest_controller.get_notifications_for(&device)
+                        let device = str::replace(query_params, "city=", "");
+                        future::ok(self.rest_controller.get_notifications_for(&device))
                     },
                     _ => {
-                        Response::builder()
+                        future::ok(Response::builder()
                            .status(StatusCode::BAD_REQUEST)
                            .body(Body::from("query parameter 'city' is mandatory but hasn't been provided."))
-                           .unwrap()
+                           .unwrap())
                     }
                 }
             }
             _ => {
-                Response::builder()
+                future::ok(Response::builder()
                    .status(StatusCode::NOT_FOUND)
                    .body(Body::empty())
-                   .unwrap()
+                   .unwrap())
             }
         };
 
-        return Box::new(future::ok(result));
+        return Box::new(result);
     }
 
     fn dispatch_alexa(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
@@ -75,7 +75,7 @@ impl Dispatcher {
                 let processing_result: Result<Response<Body>, hyper::Error> = match parse_result {
                     Ok(call) => match call.request.intent.name.as_ref() {
                         "create_slap_notification" => _alexa_controller.create_slap_notification(call),
-                        "deliver_notification" => _alexa_controller.deliver_notification(&call),
+                        "deliver_notification" => _alexa_controller.deliver_notification(call),
                         _ => _alexa_controller.no_action_defined(&call)
                     },
                     Err(err) => {

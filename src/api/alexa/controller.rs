@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 
 use hyper::{Body, Request, Response, StatusCode};
 
-use crate::api::alexa::dto::{GenericCall, GenericResult, CountrySlot, Slots};
+use crate::api::alexa::dto::{GenericCall, GenericResult, CitySlot, Slots};
 
 pub struct AlexaController {
     storage: Arc<RwLock<storage::Storage>>
@@ -37,17 +37,15 @@ impl AlexaController {
 
     pub fn create_slap_notification(&self, call: GenericCall) -> Result<Response<Body>, hyper::Error> {
 
-        if call.request.intent.slots.is_none() {
+        let for_city_opt = self.resolve_city(call.clone());
+        if for_city_opt.is_none() {
             let result_object = GenericResult::city_not_provided();
+            println!("city hasn't been provided");
             return self.prepare_response(result_object);
         }
 
-        let slots: Slots = call.request.intent.slots.unwrap();
-        let for_city: String = slots.country.value;
-        let from_city: String = call.context.system.device.device_id;
-        println!("create slap notification for the city: {} from the city {}", &for_city, &from_city);
-
-        let event = storage::Event::new_slap_from(from_city);
+        let for_city = for_city_opt.unwrap();
+        let event = storage::Event::new_slap();
 
         self.storage.write().unwrap().add_event(event, for_city.clone());
         let response_object = GenericResult::notification_created(for_city.clone());
@@ -55,22 +53,32 @@ impl AlexaController {
         return self.prepare_response(response_object);
     }
 
-    pub fn deliver_notification(&self, call: &GenericCall) -> Result<Response<Body>, hyper::Error> {
-        let for_city = &call.context.system.device.device_id;
+    pub fn deliver_notification(&self, call: GenericCall) -> Result<Response<Body>, hyper::Error> {
+
+        let for_city_opt = self.resolve_city(call.clone());
+        if for_city_opt.is_none() {
+            let result_object = GenericResult::city_not_provided();
+            println!("city hasn't been provided");
+            return self.prepare_response(result_object);
+        }
+
+        let for_city = for_city_opt.unwrap();
+
+        println!("city value is {}", &for_city);
 
         if !self.storage.read().unwrap().is_registered(&for_city) {
             let response_object = GenericResult::city_unknown();
             return self.prepare_response(response_object);
         }
 
-        match self.storage.write().unwrap().pop_event(for_city) {
+        match self.storage.write().unwrap().pop_event(&for_city) {
             Some(event) => {
                 let result = GenericResult::for_event(event);
                 self.prepare_response(result)
             },
             None => {
                 println!("No notifications found for city: {}", &for_city);
-                let result = GenericResult::city_unknown();
+                let result = GenericResult::no_notifications_found_for(&for_city);
                 self.prepare_response(result)
             }
         }
@@ -83,6 +91,11 @@ impl AlexaController {
            .status(StatusCode::NOT_FOUND)
            .body(Body::empty())
            .unwrap())
+    }
+
+    fn resolve_city(&self, call: GenericCall) -> Option<String> {
+        let city = call.request.intent.slots?.city.resolutions.resolutionsPerAuthority.first()?.values.first()?.value.name.clone();
+        Some(city)
     }
 
 }

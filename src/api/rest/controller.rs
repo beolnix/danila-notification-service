@@ -18,8 +18,7 @@ impl RestController {
         }
     }
 
-    pub fn get_notifications_for(&self, city_param: &String) -> Response<Body> {
-        let device = city_param.replace("city=", "");
+    pub fn get_notifications_for(&self, device: &String) -> Response<Body> {
         println!("DEBUG: received GET notifications request for device: {}", device);
 
         let count = self.storage.read().unwrap().size(&device);
