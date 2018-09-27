@@ -13,6 +13,8 @@ use futures::{future, Future, Stream};
 use hyper::{Body, Request, Server, Method, Response};
 use hyper::service::service_fn;
 
+use crate::api::rest::dto::StatusResponse;
+
 fn create_dispatcher(storage: Arc<RwLock<storage::Storage>>) -> api::dispatcher::Dispatcher {
     let alexa_controller = api::alexa::controller::AlexaController::new(storage.clone());
     let rest_controller = api::rest::controller::RestController::new(storage.clone());
@@ -48,7 +50,6 @@ fn smoke_test_get_notifications() {
     let storage = Arc::new(RwLock::new(storage::Storage::new()));
     let dispatcher = create_dispatcher(storage.clone());
     let for_city = String::from("BERLIN");
-    let from_city = String::from("MILAN");
 
     let event = storage::Event::new_slap();
     storage.write().unwrap().add_event(event.clone(), for_city.clone());
@@ -59,7 +60,8 @@ fn smoke_test_get_notifications() {
     // then
     let response = dispatcher.dispatch(req).wait().unwrap();
     let rsp_body = consume_body(response);
-    let response_object: api::rest::dto::DACountNotificationResponse = serde_json::from_str(&rsp_body).unwrap();
+    println!("received response: {}", rsp_body);
+    let response_object: StatusResponse = serde_json::from_str(&rsp_body).unwrap();
 
     assert_eq!(response_object.message_num, 1);
 }
@@ -118,7 +120,6 @@ let raw_body = r###"{"version":"1.0","session":{"new":true,"sessionId":"amzn1.ec
 fn create_notification_for(city: &String, dispatcher: &api::dispatcher::Dispatcher) {
 
     let raw_body = r###"{"version":"1.0","session":{"new":true,"sessionId":"amzn1.echo-api.session.c9add14f-1b3d-40ad-a7e3-f2452e3c2f47","application":{"applicationId":"amzn1.ask.skill.9f4ef1dd-cee9-40e5-b01d-30b9f4ecce7f"},"user":{"userId":"amzn1.ask.account.AGWKPG3JM4Z364AYKKSAGHKL6CYWMJKOAZGXG5CPXYX2Y7UKWZTH6XELFWPICBCWZP7OF5VEBSQTQ4UMCVE7EVRWN2PUKBLMJGU3GD22HZSRVU6TTDMUN2PJ5M7TWKAQOT7VBFKZJLBICK3WVIXOGDF7YHXTWWWKC75D2ONSL4JOLRUFFY2JKEAP5U44TCLJJBQDDFJMFGUG5WY"}},"context":{"System":{"application":{"applicationId":"amzn1.ask.skill.9f4ef1dd-cee9-40e5-b01d-30b9f4ecce7f"},"user":{"userId":"amzn1.ask.account.AGWKPG3JM4Z364AYKKSAGHKL6CYWMJKOAZGXG5CPXYX2Y7UKWZTH6XELFWPICBCWZP7OF5VEBSQTQ4UMCVE7EVRWN2PUKBLMJGU3GD22HZSRVU6TTDMUN2PJ5M7TWKAQOT7VBFKZJLBICK3WVIXOGDF7YHXTWWWKC75D2ONSL4JOLRUFFY2JKEAP5U44TCLJJBQDDFJMFGUG5WY"},"device":{"deviceId":"amzn1.ask.device.AFBBPRUJRVKP4BAHNQW4BS6FJZP32LOYQO2AYRVRMCKP7D3U5BHCS35VMMAPWMZEHJMDZTQJ5Z7EMJDRWXCADDHYR4OOCL7BTJ44MIZB2EFMCE2WM7DZ4QJDFMVNKAIXQ7OPW6UJDJGCJBKSE2IUOIPRJASFASF7CYBLYIMA725YQFMRGJPBO","supportedInterfaces":{}},"apiEndpoint":"https://api.amazonalexa.com","apiAccessToken":"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ.eyJhdWQiOiJodHRwczovL2FwaS5hbWF6b25hbGV4YS5jb20iLCJpc3MiOiJBbGV4YVNraWxsS2l0Iiwic3ViIjoiYW16bjEuYXNrLnNraWxsLjlmNGVmMWRkLWNlZTktNDBlNS1iMDFkLTMwYjlmNGVjY2U3ZiIsImV4cCI6MTUzODA0NjgzOCwiaWF0IjoxNTM4MDQzMjM4LCJuYmYiOjE1MzgwNDMyMzgsInByaXZhdGVDbGFpbXMiOnsiY29uc2VudFRva2VuIjpudWxsLCJkZXZpY2VJZCI6ImFtem4xLmFzay5kZXZpY2UuQUZCQlBSVUpSVktQNEJBSE5RVzRCUzZGSlpQMzJMT1lRTzJBWVJWUk1DS1A3RDNVNUJIQ1MzNVZNTUFQV01aRUhKTURaVFFKNVo3RU1KRFJXWENBRERIWVI0T09DTDdCVEo0NE1JWkIyRUZNQ0UyV003RFo0UUpERk1WTktBSVhRN09QVzZVSkRKR0NKQktTRTJJVU9JUFJKQVNGQVNGN0NZQkxZSU1BNzI1WVFGTVJHSlBCTyIsInVzZXJJZCI6ImFtem4xLmFzay5hY2NvdW50LkFHV0tQRzNKTTRaMzY0QVlLS1NBR0hLTDZDWVdNSktPQVpHWEc1Q1BYWVgyWTdVS1daVEg2WEVMRldQSUNCQ1daUDdPRjVWRUJTUVRRNFVNQ1ZFN0VWUldOMlBVS0JMTUpHVTNHRDIySFpTUlZVNlRURE1VTjJQSjVNN1RXS0FRT1Q3VkJGS1pKTEJJQ0szV1ZJWE9HREY3WUhYVFdXV0tDNzVEMk9OU0w0Sk9MUlVGRlkySktFQVA1VTQ0VENMSkpCUURERkpNRkdVRzVXWSJ9fQ.B5Y7wjEtxv6sH8lOaaf-jVps5yulE-EwpT84GESxd7WjPBfS7iJIjnmkmKatPpbfxRfwte_HerIW0sLKiJ2S9LJI_mg1_9t_iTiymW-ecacwHOjQeAKYRGXBhHfv41D1j_3gVouNe7cNUK8eckUDm5_o_1AjIaDLhqc9FJiNaphBYlJeyB2Mc_NjpKvFgtnS7yqcRiqESA_6imOZwHyVDS02Iq_3H2qvow9ZLfi09QTOjK3AVBkWtdif14ZD89d-jUuGVXZsvxCxB09sRoOkAQ--AZC1t2mm_AWxWsyLhfRinY6nJh4Y5RMfssBYZPfHD_HT8-aM8NsZ4p0r5SnGag"}},"request":{"type":"IntentRequest","requestId":"amzn1.echo-api.request.1fd8560b-185f-493e-b944-d2d860064e86","timestamp":"2018-09-27T10:13:58Z","locale":"en-US","intent":{"name":"create_slap_notification","confirmationStatus":"NONE","slots":{"city":{"name":"city","value":"Berlin","resolutions":{"resolutionsPerAuthority":[{"authority":"amzn1.er-authority.echo-sdk.amzn1.ask.skill.9f4ef1dd-cee9-40e5-b01d-30b9f4ecce7f.city","status":{"code":"ER_SUCCESS_MATCH"},"values":[{"value":{"name":"BERLIN","id":"0"}}]}]},"confirmationStatus":"NONE"}}}}}"###;
-    
 
     let raw_body_with_city = raw_body.replace("city_example", &city);
 
@@ -131,7 +132,7 @@ fn create_notification_for(city: &String, dispatcher: &api::dispatcher::Dispatch
 fn build_request_for_get_notifications(city: String) -> Request<Body> {
     Request::builder()
         .method(Method::GET)
-        .uri(format!("https://auto1.danila.app/rest-api/notifications?city={}", &city))
+        .uri(format!("https://auto1.danila.app/rest-api/status?city={}", &city))
         .body(Body::empty())
         .unwrap()
 }

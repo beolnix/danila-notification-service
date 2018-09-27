@@ -2,7 +2,7 @@ use crate::storage;
 use std::sync::{Arc, RwLock};
 
 use crate::futures::{future, Future};
-use crate::api::rest::dto::DACountNotificationResponse;
+use crate::api::rest::dto::StatusResponse;
 
 use hyper::{Body, Request, Response, StatusCode};
 
@@ -18,16 +18,16 @@ impl RestController {
         }
     }
 
-    pub fn get_notifications_for(&self, device: &String) -> Response<Body> {
+    pub fn get_notifications_for(&self, device: &String) -> Result<Response<Body>, hyper::Error> {
         println!("DEBUG: received GET notifications request for device: {}", device);
 
         let count = self.storage.read().unwrap().size(&device);
 
-        return self.prepare_response(count);
+        return Ok(self.prepare_response(count));
     }
 
     fn prepare_response(&self, num: usize) -> Response<Body> {
-        let response_object = DACountNotificationResponse::new(num);
+        let response_object = StatusResponse::new(num);
         match serde_json::to_string(&response_object) {
             Ok(json) => Response::builder()
                            .status(StatusCode::OK)

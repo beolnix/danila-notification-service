@@ -31,33 +31,60 @@ impl Dispatcher {
     }
 
     fn dispatch_rest(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
-        let result = match (req.method(), req.uri().path()) {
-            (&Method::GET, "/rest-api/notifications") => {
-                let (parts, _body) = req.into_parts();
-                let uri = parts.uri;
-
-                match uri.query() {
-                    Some(query_params) => {
-                        let device = str::replace(query_params, "city=", "");
-                        future::ok(self.rest_controller.get_notifications_for(&device))
-                    },
-                    _ => {
-                        future::ok(Response::builder()
-                           .status(StatusCode::BAD_REQUEST)
-                           .body(Body::from("query parameter 'city' is mandatory but hasn't been provided."))
-                           .unwrap())
-                    }
-                }
-            }
-            _ => {
-                future::ok(Response::builder()
-                   .status(StatusCode::NOT_FOUND)
-                   .body(Body::empty())
-                   .unwrap())
-            }
+        let _rest_controller = self.rest_controller.clone();
+        let (parts, body) = req.into_parts();
+        let uri = parts.uri;
+        let method = parts.method;
+        let path = String::from(uri.path());
+        let query = match uri.query() {
+            Some(query_str) => Some(String::from(query_str)),
+            _ => None
         };
 
+        let result = body
+            .fold(Vec::new(), |mut acc, chunk| {
+                acc.extend_from_slice(&chunk);
+                future::ok::<Vec<u8>, hyper::Error>(acc)
+            })
+            .and_then( move |acc| {
+                let str_body = String::from_utf8(acc).unwrap();
+                println!("request body: {}", &str_body);
+
+                let processing_result: Result<Response<Body>, hyper::Error> = match (method, path.as_ref()) {
+                    (Method::GET, "/rest-api/status") => {
+                        match query {
+                            Some(query_params) => {
+                                let device = str::replace(&query_params, "city=", "");
+                                _rest_controller.get_notifications_for(&device)
+                            },
+                            _ => {
+                                Ok(Response::builder()
+                                           .status(StatusCode::BAD_REQUEST)
+                                           .body(Body::from("query parameter 'city' is mandatory but hasn't been provided."))
+                                           .unwrap())
+                            }
+                        }
+                    },
+                    (Method::POST, "rest-api/notifications") => {
+                                Ok(Response::builder()
+                                           .status(StatusCode::BAD_REQUEST)
+                                           .body(Body::from("query parameter 'city' is mandatory but hasn't been provided."))
+                                           .unwrap())
+
+                    }
+                    _ => {
+                        Ok(Response::builder()
+                                   .status(StatusCode::NOT_FOUND)
+                                   .body(Body::empty())
+                                   .unwrap())
+                    }
+                };
+
+                processing_result
+            });
+
         return Box::new(result);
+
     }
 
     fn dispatch_alexa(&self, req: Request<Body>) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
