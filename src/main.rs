@@ -10,7 +10,7 @@ mod storage;
 
 use std::sync::{Arc, RwLock};
 use futures::{future, Future, Stream};
-use hyper::{Body, Request, Server, Method, Response};
+use hyper::{Body, Request, Server, Method, Response, StatusCode};
 use hyper::service::service_fn;
 
 use crate::api::rest::dto::StatusResponse;
@@ -43,6 +43,56 @@ fn main() {
     hyper::rt::run(server);
 
 }
+
+#[test]
+fn smoke_test_slap_rest_creation() {
+    // given
+    let storage = Arc::new(RwLock::new(storage::Storage::new()));
+    let dispatcher = create_dispatcher(storage.clone());
+    let for_city = String::from("BERLIN");
+
+    // when
+    let req = build_request_for_slap_notification_creation(for_city.clone());
+
+    // then
+    let response = dispatcher.dispatch(req).wait().unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let berlin_queue_size = storage.read().unwrap().size(&for_city);
+    assert_eq!(berlin_queue_size, 1);
+
+}
+
+#[test]
+fn smoke_test_message_rest_creation() {
+    // given
+    let storage = Arc::new(RwLock::new(storage::Storage::new()));
+    let dispatcher = create_dispatcher(storage.clone());
+    let for_city = String::from("BERLIN");
+    let message = String::from("test message text");
+
+    // when
+    let req = build_request_for_message_notification_creation(for_city.clone(), message.clone());
+
+    // then
+    let response = dispatcher.dispatch(req).wait().unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+
+    let berlin_queue_size = storage.clone().read().unwrap().size(&for_city);
+    assert_eq!(berlin_queue_size, 1);
+
+    match storage.clone().write().unwrap().pop_event(&for_city) {
+        Some(event) => {
+            assert!(event.message.clone().is_some());
+            assert_eq!(message, event.message.unwrap());
+        },
+        None => {
+            panic!();
+        }
+    }
+
+}
+
 
 #[test]
 fn smoke_test_get_notifications() {
@@ -143,6 +193,37 @@ fn build_request_for_skill_api(body: String) -> Request<Body> {
         .body(Body::from(body))
         .unwrap()
 }
+
+fn build_request_for_slap_notification_creation(for_city: String) -> Request<Body> {
+    let request_obj = api::rest::dto::CreateNotificationReqeust {
+        type_name: String::from("SLAP"),
+        for_city: for_city,
+        message_text: None
+    };
+    let json = serde_json::to_string(&request_obj).unwrap();
+
+    Request::builder()
+        .uri("https://auto1.danila.app/rest-api/notifications")
+        .method(Method::POST)
+        .body(Body::from(json))
+        .unwrap()
+}
+
+fn build_request_for_message_notification_creation(for_city: String, message: String) -> Request<Body> {
+    let request_obj = api::rest::dto::CreateNotificationReqeust {
+        type_name: String::from("MESSAGE"),
+        for_city: for_city,
+        message_text: Some(message)
+    };
+    let json = serde_json::to_string(&request_obj).unwrap();
+
+    Request::builder()
+        .uri("https://auto1.danila.app/rest-api/notifications")
+        .method(Method::POST)
+        .body(Body::from(json))
+        .unwrap()
+}
+
 
 fn consume_body(rsp: Response<Body>) -> String {
      let result = rsp.into_body()

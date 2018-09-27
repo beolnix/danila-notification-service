@@ -4,6 +4,7 @@ use hyper::{Body, Request, Response, StatusCode, Method};
 use futures::{future, Future, Stream};
 use std::sync::{Arc};
 use crate::api::rest::controller::RestController;
+use crate::api::rest::dto::CreateNotificationReqeust;
 use crate::api::alexa::controller::AlexaController;
 use crate::api::alexa::dto::GenericCall;
 
@@ -65,12 +66,17 @@ impl Dispatcher {
                             }
                         }
                     },
-                    (Method::POST, "rest-api/notifications") => {
-                                Ok(Response::builder()
-                                           .status(StatusCode::BAD_REQUEST)
-                                           .body(Body::from("query parameter 'city' is mandatory but hasn't been provided."))
-                                           .unwrap())
-
+                    (Method::POST, "/rest-api/notifications") => {
+                        let request_object: Result<CreateNotificationReqeust, serde_json::Error> = serde_json::from_str(&str_body);
+                        match request_object {
+                            Ok(object) => _rest_controller.create_notification(object),
+                            _ => {
+                                return Ok(Response::builder()
+                                          .status(StatusCode::BAD_REQUEST)
+                                          .body(Body::from("cannot deserialize body."))
+                                          .unwrap());
+                            }
+                        }
                     }
                     _ => {
                         Ok(Response::builder()

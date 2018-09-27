@@ -60,6 +60,10 @@ impl Storage {
         self.devices.contains(device)
     }
 
+    pub fn get_supported_cities_as_str(&self) -> String {
+        self.devices.clone().into_iter().collect::<Vec<String>>().join(", ")
+    }
+
     pub fn add_event(&mut self, event: Event, to_device: String) {
         if self.devices.contains(&to_device) {
             match self.notifications.get_mut(&to_device) {
