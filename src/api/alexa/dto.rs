@@ -5,6 +5,7 @@ extern crate serde_json;
 use serde_json::Error;
 
 use crate::storage::Event;
+use crate::storage::EventType;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GenericCall {
@@ -104,7 +105,8 @@ pub struct Response {
 pub struct OutputSpeech {
     #[serde(rename = "type")]
     pub type_name: String,
-    pub text: String
+    pub text: Option<String>,
+    pub ssml: Option<String>
 }
 
 impl GenericResult {
@@ -114,7 +116,8 @@ impl GenericResult {
             response: Response {
                 output_speech: OutputSpeech {
                     type_name: String::from("PlainText"),
-                    text: String::from(format!("notification for {} created", &for_city))
+                    text: Some(String::from(format!("notification for {} created", &for_city))),
+                    ssml: None
                 }
             }
         }
@@ -126,7 +129,8 @@ impl GenericResult {
             response: Response {
                 output_speech: OutputSpeech {
                     type_name: String::from("PlainText"),
-                    text: String::from("City which I need to notify hasn't been provided, blame Amazon.")
+                    text: Some(String::from("City which I need to notify hasn't been provided, blame Amazon.")),
+                    ssml: None
                 }
             }
         }
@@ -138,7 +142,8 @@ impl GenericResult {
             response: Response {
                 output_speech: OutputSpeech {
                     type_name: String::from("PlainText"),
-                    text: String::from("The device you used hasn't been registered in Danila's notification service properly, blame Danila.")
+                    text: Some(String::from("The device you used hasn't been registered in Danila's notification service properly, blame Danila.")),
+                    ssml: None
                 }
             }
         }
@@ -150,32 +155,49 @@ impl GenericResult {
             response: Response {
                 output_speech: OutputSpeech {
                     type_name: String::from("PlainText"),
-                    text: String::from(format!("There are no pending notifications for {}", &city))
+                    text: Some(String::from(format!("There are no pending notifications for {}", &city))),
+                    ssml: None
                 }
             }
         }
     }
 
     pub fn for_event(event: Event) -> GenericResult {
-        match event.event_type {
-            SLAP => {
+        let event_type = event.event_type.clone();
+        match event_type {
+            EventType::SLAP => {
                 GenericResult {
                     version: String::from("1.0"),
                     response: Response {
                         output_speech: OutputSpeech {
                             type_name: String::from("PlainText"),
-                            text: String::from(format!("Someone has just slapped you."))
+                            text: Some(String::from(format!("Someone has just slapped you."))),
+                            ssml: None
                         }
                     }
                 }
             },
+            EventType::MESSAGE => {
+                let message = event.message.unwrap();
+                GenericResult {
+                    version: String::from("1.0"),
+                    response: Response {
+                        output_speech: OutputSpeech {
+                            type_name: String::from("SSML"),
+                            text: None,
+                            ssml: Some(String::from(format!(r###"<speak>Someone sent you a message: <emphasis level="strong"> {} </emphasis> </speak> "###, &message)))
+                        }
+                    }
+                }
+            }
             _ => {
                 GenericResult {
                     version: String::from("1.0"),
                     response: Response {
                         output_speech: OutputSpeech {
                             type_name: String::from("PlainText"),
-                            text: String::from("You has just been slapped but I don't know by whom.")
+                            text: Some(String::from("You has just been slapped but I don't know by whom.")),
+                            ssml: None
                         }
                     }
                 }
