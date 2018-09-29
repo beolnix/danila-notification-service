@@ -61,7 +61,8 @@ pub struct CitySlot {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Resolutions {
-    pub resolutionsPerAuthority: Vec<ResolutionsPerAuthority>
+    #[serde(rename = "resolutionsPerAuthority")]
+    pub resolutions_per_authority: Vec<ResolutionsPerAuthority>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -190,18 +191,6 @@ impl GenericResult {
                     }
                 }
             }
-            _ => {
-                GenericResult {
-                    version: String::from("1.0"),
-                    response: Response {
-                        output_speech: OutputSpeech {
-                            type_name: String::from("PlainText"),
-                            text: Some(String::from("You has just been slapped but I don't know by whom.")),
-                            ssml: None
-                        }
-                    }
-                }
-            }
         }
     }
 
@@ -216,5 +205,5 @@ fn smoke_test_create_custom_notification() {
     let parsed_call = GenericCall::from(&String::from(request_json)).unwrap();
 
     assert_eq!("create_slap_notification", parsed_call.request.intent.name);
-    assert_eq!("BERLIN", parsed_call.request.intent.slots.unwrap().city.resolutions.resolutionsPerAuthority.first().unwrap().values.first().unwrap().value.name);
+    assert_eq!("BERLIN", parsed_call.request.intent.slots.unwrap().city.resolutions.resolutions_per_authority.first().unwrap().values.first().unwrap().value.name);
 }

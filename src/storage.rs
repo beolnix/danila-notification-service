@@ -100,7 +100,7 @@ fn smoke_test_storage() {
     storage.add_event(event.clone(), String::from("MILAN"));
 
     match storage.pop_event(&String::from("MILAN")) {
-        Some(poped_event) => (),
+        Some(_poped_event) => (),
         _ => panic!()
     }
 
@@ -122,12 +122,12 @@ fn smoke_test_empty_storage() {
     }
 
     match storage.pop_event(&String::from("MILAN")) {
-        Some(poped_event) => (),
+        Some(_poped_event) => (),
         _ => panic!()
     }
 
     match storage.pop_event(&String::from("MILAN")) {
-        Some(poped_event) => (),
+        Some(_poped_event) => (),
         _ => panic!()
     }
 

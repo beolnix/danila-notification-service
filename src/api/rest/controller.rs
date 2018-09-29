@@ -1,10 +1,14 @@
 use crate::storage;
+
 use std::sync::{Arc, RwLock};
+use crate::futures::Future;
 
-use crate::futures::{future, Future};
 use crate::api::rest::dto::{StatusResponse, CreateNotificationReqeust};
+use crate::api::utils::{bad_request_rsp, created_rsp, internal_error_rsp, ok_rsp};
 
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{Body, Response};
+
+
 
 pub struct RestController {
     storage: Arc<RwLock<storage::Storage>>
@@ -18,76 +22,60 @@ impl RestController {
         }
     }
 
-    pub fn get_notifications_for(&self, device: &String) -> Result<Response<Body>, hyper::Error> {
+    pub fn get_notifications_for(&self, device: &String) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
         println!("DEBUG: received GET notifications request for device: {}", device);
 
         let count = self.storage.read().unwrap().size(&device);
 
-        return Ok(self.prepare_response(count));
+        return prepare_response(count);
     }
 
-    pub fn create_notification(&self, req: CreateNotificationReqeust) -> Result<Response<Body>, hyper::Error> {
+    pub fn create_notification(&self, req: CreateNotificationReqeust) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
         let event_type = req.type_name.clone();
         let for_city = req.for_city;
         let valid_city = self.storage.read().unwrap().is_registered(&for_city);
 
+        // validate parameter value
         if !valid_city {
             let supported_cities = self.storage.read().unwrap().get_supported_cities_as_str();
-            return Ok(Response::builder()
-                      .status(StatusCode::BAD_REQUEST)
-                      .body(Body::from(format!("The city {} is not supported. Supported cities are: {}.", &for_city, &supported_cities)))
-                      .unwrap());
+            return bad_request_rsp(format!("The city {} is not supported. Supported cities are: {}.", &for_city, &supported_cities));
         }
 
+        // process valid creation request
         match event_type.as_ref() {
-            "SLAP" => {
-                let event = storage::Event::new_slap();
-                self.storage.write().unwrap().add_event(event, for_city);
-                Ok(Response::builder()
-                   .status(StatusCode::CREATED)
-                   .body(Body::empty())
-                   .unwrap())
-            },
+            "SLAP" => self.create_slap_msg(for_city),
             "MESSAGE" => {
                 match req.message_text {
-                    Some(text) => {
-                        let event = storage::Event::new_message(text);
-                        self.storage.write().unwrap().add_event(event, for_city);
-
-                        Ok(Response::builder()
-                           .status(StatusCode::CREATED)
-                           .body(Body::empty())
-                           .unwrap())
-                    },
-                    None => Ok(Response::builder()
-                               .status(StatusCode::BAD_REQUEST)
-                               .body(Body::from("message_text property must not be missed if notification type is MESSAGE."))
-                               .unwrap())
+                    Some(text) => self.create_text_msg(for_city, text),
+                    None => bad_request_rsp(String::from("message_text property must not be missed if notification type is MESSAGE."))
                 }
             },
-            _ => Ok(Response::builder()
-                    .status(StatusCode::BAD_REQUEST)
-                    .body(Body::from(format!("The event type '{}' is not supported. Supported types are: SLAP, MESSAGE.", &event_type)))
-                    .unwrap())
+            _ => bad_request_rsp(format!("The event type '{}' is not supported. Supported types are: SLAP, MESSAGE.", &event_type))
         }
     }
 
-    fn prepare_response(&self, num: usize) -> Response<Body> {
-        let response_object = StatusResponse::new(num);
-        match serde_json::to_string(&response_object) {
-            Ok(json) => Response::builder()
-                           .status(StatusCode::OK)
-                           .body(Body::from(json))
-                           .unwrap(),
-            Err(err) => {
-                println!("ERROR: failed to serialize response for notification creation: {:?}", err);
-                Response::builder()
-                   .status(StatusCode::INTERNAL_SERVER_ERROR)
-                   .body(Body::empty())
-                   .unwrap()
-            }
-
-        }
+    fn create_text_msg(&self, for_city: String, text: String) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+        let event = storage::Event::new_message(text);
+        self.storage.write().unwrap().add_event(event, for_city);
+        created_rsp()
     }
 
+    fn create_slap_msg(&self, for_city: String) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+        let event = storage::Event::new_slap();
+        self.storage.write().unwrap().add_event(event, for_city);
+        created_rsp()
+    }
+
+}
+
+fn prepare_response(num: usize) -> Box<Future<Item=Response<Body>, Error=hyper::Error> + Send> {
+    let response_object = StatusResponse::new(num);
+    match serde_json::to_string(&response_object) {
+        Ok(json) => ok_rsp(json),
+        Err(err) => {
+            println!("ERROR: failed to serialize response for notification creation: {:?}", err);
+            internal_error_rsp()
+        }
+
+    }
 }
