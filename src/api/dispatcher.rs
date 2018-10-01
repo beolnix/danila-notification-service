@@ -17,39 +17,6 @@ pub struct DeconstructedRequest {
     pub body: Box<Future<Item=String, Error=hyper::Error> + Send>
 }
 
-impl DeconstructedRequest {
-    pub fn new(method: hyper::Method, path: String, query: Option<String>, body: Box<Future<Item=String, Error=hyper::Error> + Send>) -> DeconstructedRequest {
-        DeconstructedRequest {
-            method: method,
-            path: path,
-            query: query,
-            body: body
-        }
-    }
-
-    pub fn from(req: Request<Body>) -> DeconstructedRequest {
-        let (parts, body) = req.into_parts();
-        let uri = parts.uri;
-        let method = parts.method;
-        let path = String::from(uri.path());
-        let query = match uri.query() {
-            Some(query_str) => Some(String::from(query_str)),
-            _ => None
-        };
-        let raw_body = body
-            .fold(Vec::new(), |mut acc, chunk| {
-                acc.extend_from_slice(&chunk);
-                future::ok::<Vec<u8>, hyper::Error>(acc)
-            })
-            .and_then( move |acc| {
-                ok(String::from_utf8(acc).unwrap())
-            });
-
-        let result_body = Box::new(raw_body);
-
-        return DeconstructedRequest::new(method, path, query, result_body);
-    }
-}
 
 pub struct Dispatcher {
     rest_controller: Arc<RestController>,
@@ -135,8 +102,42 @@ impl Dispatcher {
         return Box::new(result);
     }
 
-
 }
+
+impl DeconstructedRequest {
+    pub fn new(method: hyper::Method, path: String, query: Option<String>, body: Box<Future<Item=String, Error=hyper::Error> + Send>) -> DeconstructedRequest {
+        DeconstructedRequest {
+            method: method,
+            path: path,
+            query: query,
+            body: body
+        }
+    }
+
+    pub fn from(req: Request<Body>) -> DeconstructedRequest {
+        let (parts, body) = req.into_parts();
+        let uri = parts.uri;
+        let method = parts.method;
+        let path = String::from(uri.path());
+        let query = match uri.query() {
+            Some(query_str) => Some(String::from(query_str)),
+            _ => None
+        };
+        let raw_body = body
+            .fold(Vec::new(), |mut acc, chunk| {
+                acc.extend_from_slice(&chunk);
+                future::ok::<Vec<u8>, hyper::Error>(acc)
+            })
+            .and_then( move |acc| {
+                ok(String::from_utf8(acc).unwrap())
+            });
+
+        let result_body = Box::new(raw_body);
+
+        return DeconstructedRequest::new(method, path, query, result_body);
+    }
+}
+
 
 
 

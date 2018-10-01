@@ -44,6 +44,9 @@ fn main() {
 
 }
 
+// ------------- there are tests only below this point ------------
+
+
 #[test]
 fn smoke_test_slap_rest_creation() {
     // given
