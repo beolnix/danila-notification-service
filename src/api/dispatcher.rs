@@ -70,7 +70,7 @@ impl Dispatcher {
                         match request_object {
                             Ok(object) => _rest_controller.create_notification(object),
                             _ => bad_request_rsp(String::from("cannot deserialize body."))
-                        }
+                         }
                     }
                     _ => not_found_rsp()
                 }
